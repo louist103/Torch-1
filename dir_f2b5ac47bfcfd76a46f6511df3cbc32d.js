@@ -8,9 +8,9 @@ var dir_f2b5ac47bfcfd76a46f6511df3cbc32d =
     [ "AnimationFactory.h", "AnimationFactory_8h_source.html", null ],
     [ "BehaviorScriptFactory.h", "BehaviorScriptFactory_8h_source.html", null ],
     [ "CollisionFactory.h", "sm64_2CollisionFactory_8h_source.html", null ],
-    [ "DialogFactory.h", "DialogFactory_8h_source.html", null ],
+    [ "DialogFactory.h", "sm64_2DialogFactory_8h_source.html", null ],
     [ "DictionaryFactory.h", "DictionaryFactory_8h_source.html", null ],
-    [ "GeoLayoutFactory.h", "GeoLayoutFactory_8h_source.html", null ],
+    [ "GeoLayoutFactory.h", "sm64_2GeoLayoutFactory_8h_source.html", null ],
     [ "LevelScriptFactory.h", "LevelScriptFactory_8h_source.html", null ],
     [ "MacroFactory.h", "MacroFactory_8h_source.html", null ],
     [ "MovtexFactory.h", "MovtexFactory_8h_source.html", null ],
@@ -18,6 +18,7 @@ var dir_f2b5ac47bfcfd76a46f6511df3cbc32d =
     [ "PaintingFactory.h", "PaintingFactory_8h_source.html", null ],
     [ "PaintingMapFactory.h", "PaintingMapFactory_8h_source.html", null ],
     [ "TextFactory.h", "TextFactory_8h_source.html", null ],
+    [ "TextPreview.h", "TextPreview_8h_source.html", null ],
     [ "TrajectoryFactory.h", "TrajectoryFactory_8h_source.html", null ],
     [ "WaterDropletFactory.h", "WaterDropletFactory_8h_source.html", null ]
 ];
