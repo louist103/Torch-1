@@ -85,6 +85,9 @@ int ci2raw_torch(uint8_t* raw, const ci* img, int width, int height, int depth);
 // N64 CI raw data and palette to raw data (either RGBA16 or IA16)
 uint8_t *ci2raw(const uint8_t *rawci, const uint8_t *palette, int width, int height, int ci_depth);
 
+// N64 CI raw data and palette to rgba32
+rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int height, int ci_depth);
+
 // convert from raw (RGBA16 or IA16) format to CI + palette
 int raw2ci(uint8_t *rawci, palette_t *pal, const uint8_t *raw, int raw_len, int ci_depth);
 
@@ -97,6 +100,8 @@ int rgba2png(unsigned char** png_output, int* size_output, const rgba* img, int 
 
 // intermediate IA write to grayscale PNG file
 int ia2png(unsigned char** png_output, int* size_output, const ia* img, int width, int height);
+
+rgba* ia2rgba32(int* size_output, const ia* img, int width, int height);
 
 int ci2png(unsigned char** png_output, int* size_output, const ci* img, int width, int height);
 

@@ -219,7 +219,8 @@ public:
 
     std::string GetCurrentFile(void) { return this->gCurrentFile; }
     std::optional<std::uint32_t> GetFileOffsetFromName(void) const { return this->gCurrentFileOffset; };
-    std::uint32_t GetCurrSegmentNumber(void) const { return this->gCurrentSegmentNumber; };
+    std::uint32_t GetCurrSegmentNumber(void) const { return this->gCurrentSegmentNumber; }
+    std::uint32_t GetFileSegmentNumber(const std::string& file) const { return this->gFileSegMap.at(file); }
     CompressionType GetCurrCompressionType(void) const { return this->gCurrentCompressionType; };
     std::optional<std::uint32_t> GetCurrentCompressedSize(void) const { return this->gCurrentCompressedSize; };
     std::optional<VRAMEntry> GetCurrentVRAM(void) const { return this->gCurrentVram; };
@@ -295,6 +296,7 @@ private:
     bool mShouldProcess = true;
     uint32_t gCurrentPad = 0;
     uint32_t gCurrentFileOffset;
+    std::unordered_map<std::string, uint32_t> gFileSegMap;
     uint32_t gCurrentSegmentNumber;
     std::optional<VRAMEntry> gCurrentVram;
     CompressionType gCurrentCompressionType = CompressionType::None;
@@ -327,7 +329,7 @@ private:
         gNodesByTypeCache;
     // Validity bitmap; bit 0 = !includeAutogen, bit 1 = includeAutogen.
     std::unordered_map<std::string, std::unordered_map<std::string, uint8_t>> gNodesByTypeCacheValid;
-
+    bool gCreateAtlas;
     void ProcessParseFile(YAML::Node root, std::atomic<size_t>& assetCount);
     void ProcessExportFile();
     void ProcessFile(YAML::Node root);

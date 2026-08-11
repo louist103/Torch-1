@@ -31,6 +31,7 @@
 #include "factories/AssetArrayFactory.h"
 #include "factories/ViewportFactory.h"
 #include "factories/CompressedTextureFactory.h"
+#include "factories/TextureAtlasFactory.h"
 
 #ifdef SM64_SUPPORT
 #include "factories/sm64/AnimationFactory.h"
@@ -208,7 +209,7 @@ void Companion::Init(const ExportType type, std::atomic<size_t>& assetCount, boo
     this->RegisterFactory("ASSET_ARRAY", std::make_shared<AssetArrayFactory>());
     this->RegisterFactory("VP", std::make_shared<ViewportFactory>());
     this->RegisterFactory("COMPRESSED_TEXTURE", std::make_shared<CompressedTextureFactory>());
-
+    this->RegisterFactory("TEXTURE_ATLAS", std::make_shared<TextureAtlasFactory>());
 #ifdef SM64_SUPPORT
     this->RegisterFactory("SM64:DIALOG", std::make_shared<SM64::DialogFactory>());
     this->RegisterFactory("SM64:TEXT", std::make_shared<SM64::TextFactory>());
@@ -546,11 +547,11 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
 
                 std::string externalFileName =
                     (this->gSourceDirectory / externalFile.as<std::string>()).generic_string();
-                if (StringHelper::StartsWith(
+                /*if (StringHelper::StartsWith(
                         std::filesystem::relative(externalFileName, this->gAssetPath).generic_string(), "../")) {
                     throw std::runtime_error("External File " + externalFileName + " Not In Asset Directory " +
                                              this->gAssetPath);
-                } else if (std::filesystem::relative(externalFileName, this->gAssetPath).string() == "") {
+                } else*/ if (std::filesystem::relative(externalFileName, this->gAssetPath).string() == "") {
                     throw std::runtime_error("External File " + externalFileName + " Not In Asset Directory " +
                                              this->gAssetPath);
                 }
@@ -865,6 +866,7 @@ void Companion::ProcessParseFile(YAML::Node root, std::atomic<size_t>& assetCoun
         SPDLOG_INFO("------------------------------------------------");
         spdlog::set_pattern(line);
     }
+
 }
 
 void Companion::ProcessExportFile() {
@@ -1208,9 +1210,15 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     // directory must be resolved before the loop. Default to the file's own
     // path, then honor a :config directory override (used to register a room's
     // assets under its scene's directory).
+    const auto filePath = fs::path(this->gCurrentFile);
     this->gCurrentDirectory = relative(fs::path(this->gCurrentFile), this->gAssetPath).replace_extension("");
     if (auto directory = root[":config"]["directory"]) {
         this->gCurrentDirectory = directory.as<std::string>();
+    }
+    if (auto createAtlas = root[":config"]["createatlas"]) {
+        this->gCreateAtlas = createAtlas.as<bool>();
+    } else {
+        this->gCreateAtlas = true;
     }
     // Set compressed file offsets and compression type
     if (auto segments = root[":config"]["segments"]) {
@@ -1219,6 +1227,7 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
                 SetSegmentInfo(segments);
 
                 gCurrentCompressionType = Decompressor::GetCompressionType(this->gRomData, gCurrentFileOffset);
+                gFileSegMap[filePath.filename().stem()] = gCurrentSegmentNumber;
                 if (root[":config"]["no_compression"]) {
                     gCurrentCompressionType = CompressionType::None;
                 }
@@ -1690,6 +1699,20 @@ void Companion::Process(std::atomic<size_t>& assetCount) {
 
         if (!Torch::contains(this->gProcessedFiles, this->gCurrentFile)) {
             ProcessFile(root, assetCount);
+            if (this->gCreateAtlas) {
+                YAML::Node atlasNode;
+                YAML::Node atlasRoot;
+                atlasNode["type"] = "TEXTURE_ATLAS";
+                atlasNode["offset"] = "0x1234";
+                std::string name = this->gCurrentDirectory.filename().string() + "_Atlas";
+                atlasRoot[name]= atlasNode;
+
+                auto factory = this->GetFactory("TEXTURE_ATLAS");
+                auto taf = dynamic_cast<TextureAtlasFactory*>(factory->get());
+                taf->parseLate(this->gParseResults[this->gCurrentFile]);
+            } else {
+                int bp = 0;
+            }
             if (mShouldProcess) {
                 this->gProcessedFiles.insert(this->gCurrentFile);
             }
