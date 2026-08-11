@@ -292,6 +292,7 @@ std::optional<std::shared_ptr<IParsedData>> TextureFactory::parse(std::vector<ui
     uint32_t size;
 
     std::transform(format.begin(), format.end(), format.begin(), ::toupper);
+    node["format"] = format; // Store the upper case name for later.
 
     if (format.empty()) {
         SPDLOG_ERROR("Texture entry at {:X} in yaml missing format node\n\
@@ -315,23 +316,72 @@ std::optional<std::shared_ptr<IParsedData>> TextureFactory::parse(std::vector<ui
         height = GetSafeNode<uint32_t>(node, "height");
     }
 
-    if ((format == "CI4" || format == "CI8") && node["tlut"] && node["colors"]) {
+
+    if ((format == "CI4" || format == "CI8") ) {
+        if (node["tlut"]) {
+            auto curSegNum = Companion::Instance->GetCurrSegmentNumber();
+            const auto tlutOffset = GetSafeNode<uint32_t>(node, "tlut");
+            // Was the TLUT declared?
+            std::string sym = Companion::Instance->GetSymbolFromAddr(curSegNum << 24 | tlutOffset, true);
+            // Not declared since the returned symbol is a segment address
+            if (sym.starts_with("0x")) {
+                YAML::Node tlutNode;
+                const auto tlutSymbol = GetSafeNode(node, "tlut_symbol", symbol + "_tlut");
+                std::ostringstream offsetSeg;
+                offsetSeg << std::uppercase << std::hex << tlutOffset;
+                // TODO check what happens with vr_cloud0_static
+                tlutNode["symbol"] = std::regex_replace(tlutSymbol, std::regex(R"(OFFSET)"), offsetSeg.str());
+                tlutNode["type"] = "TEXTURE";
+                tlutNode["format"] = "TLUT";
+                tlutNode["offset"] = tlutOffset;
+                if (node["colors"])
+                    tlutNode["colors"] = GetSafeNode<uint32_t>(node, "colors");
+                else {
+                    if (format == "CI4")
+                        tlutNode["colors"] = 16;
+                    else if (format == "CI8")
+                        tlutNode["colors"] = 256;
+                    else
+                        assert(0);
+                }
+                if (node["tlut_ctype"]) {
+                    tlutNode["ctype"] = GetSafeNode<std::string>(node, "tlut_ctype");
+                }
+                Companion::Instance->AddAsset(tlutNode);
+            }
+        }
+    }
+#if 0
+    if ((format == "CI4" || format == "CI8") && node["tlut"]) {
         YAML::Node tlutNode;
         const auto tlutOffset = GetSafeNode<uint32_t>(node, "tlut");
         const auto tlutSymbol = GetSafeNode(node, "tlut_symbol", symbol + "_tlut");
         std::ostringstream offsetSeg;
         offsetSeg << std::uppercase << std::hex << tlutOffset;
+        // TODO check what happens with vr_cloud0_static
+        auto curSegNum = Companion::Instance->GetCurrSegmentNumber();
+        std::string sym = Companion::Instance->GetSymbolFromAddr(curSegNum << 24 | tlutOffset, true);
         tlutNode["symbol"] = std::regex_replace(tlutSymbol, std::regex(R"(OFFSET)"), offsetSeg.str());
         tlutNode["type"] = "TEXTURE";
         tlutNode["format"] = "TLUT";
         tlutNode["offset"] = tlutOffset;
-        tlutNode["colors"] = GetSafeNode<uint32_t>(node, "colors");
+        if (node["colors"])
+            tlutNode["colors"] = GetSafeNode<uint32_t>(node, "colors");
+        else {
+            if (format == "CI4")
+                tlutNode["colors"] = 16;
+            else if (format == "CI8")
+                tlutNode["colors"] = 256;
+            else
+                assert(0);
+        }
         node["tlut"] = tlutOffset;
         if (node["tlut_ctype"]) {
             tlutNode["ctype"] = GetSafeNode<std::string>(node, "tlut_ctype");
         }
         Companion::Instance->AddAsset(tlutNode);
     }
+#endif
     size = GetSafeNode<uint32_t>(node, "size",
                                  TextureUtils::CalculateTextureSize(sTextureFormats.at(format).type, width, height));
     auto [_, segment] = Decompressor::AutoDecode(node, buffer, size);

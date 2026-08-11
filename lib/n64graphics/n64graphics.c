@@ -224,6 +224,49 @@ uint8_t* ci2raw(const uint8_t* rawci, const uint8_t* palette, int width, int hei
 
     return raw;
 }
+// TODO add support for split TLUT from ZAPD
+rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int height, int ci_depth) {
+    rgba* img;
+    int raw_size;
+    const int pixelDivisor = ci_depth == 8 ? 1 : 2;
+
+
+    // first convert to raw RGBA
+    raw_size = sizeof(rgba) * width * height;
+    img = malloc(raw_size);
+    if (!img) {
+        ERROR("Error allocating %u bytes\n", raw_size);
+        return NULL;
+    }
+/*
+    for (int i = 0; i < width * height; i++) {
+                img[i].red = SCALE_5_8((raw[i * 2] & 0xF8) >> 3);
+                img[i].green = SCALE_5_8(((raw[i * 2] & 0x07) << 2) | ((raw[i * 2 + 1] & 0xC0) >> 6));
+                img[i].blue = SCALE_5_8((raw[i * 2 + 1] & 0x3E) >> 1);
+                img[i].alpha = (raw[i * 2 + 1] & 0x01) ? 0xFF : 0x00;
+            }*/
+
+    for (int i = 0; i < (width * height); i++) {
+        int pal_idx;
+        if (ci_depth == 4) {
+            int byte_idx = i / 2;
+            int nibble = 1 - (i % 2);
+            int shift = 4 * nibble;
+            pal_idx = (rawci[byte_idx] >> shift) & 0xF;
+        } else {
+            pal_idx = rawci[i];
+        }
+        uint8_t a = palette[2 * pal_idx];
+        uint8_t b = palette[2 * pal_idx + 1];
+        img[i].red = SCALE_5_8((a & 0xF8) >> 3);
+        img[i].green = SCALE_5_8(((a & 0x07) << 2) | ((b & 0xC0) >> 6));
+        img[i].blue = SCALE_5_8((b & 0x3E) >> 1);
+        img[i].alpha = b & 0x01 ? 0xFF : 0x00;
+
+    }
+
+    return img;
+}
 
 //---------------------------------------------------------
 // internal RGBA/IA -> N64 RGBA/IA/I/CI
@@ -493,6 +536,28 @@ int ia2png(unsigned char** png_output, int* size_output, const ia* img, int widt
     }
 
     return ret;
+}
+
+rgba* ia2rgba32(int* size_output, const ia* img, int width, int height) {
+    rgba* data;
+
+    // convert to format stb_image_write expects
+    data = malloc(sizeof(rgba) * width * height);
+    if (data) {
+        for (int j = 0; j < height; j++) {
+            for (int i = 0; i < width; i++) {
+                int idx = j * width + i;
+                data[idx].red = img[idx].intensity;
+                data[idx].blue = img[idx].intensity;
+                data[idx].green = img[idx].intensity;
+                data[idx].alpha = img[idx].alpha;
+                //data[2 * idx] = img[idx].intensity;
+                //data[2 * idx + 1] = img[idx].alpha;
+            }
+        }
+    }
+
+    return data;
 }
 
 int ci2png(unsigned char **png_output, int *size_output, const ci *img, int width, int height) {
