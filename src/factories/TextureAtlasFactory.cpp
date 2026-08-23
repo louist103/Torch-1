@@ -174,7 +174,7 @@ static void BuildAtlasBinary(const std::unordered_map<std::shared_ptr<AtlasedTex
         }
     }
     // TODO remove this before shipping
-#ifdef TEST_ATLAS
+#if 1
     unsigned char* outData;
     int sizeOut;
     rgba2png(&outData, &sizeOut, (rgba*)textureData, atlasWidth, atlasHeight);
@@ -241,7 +241,11 @@ std::optional<std::shared_ptr<IParsedData>> TextureAtlasFactory::parseLate(std::
                     auto tlutData = Companion::Instance->GetParseDataByAddr(curSegNum << 24 | tlutOffset.as<uint32_t>());
                     tlutOffsets.insert(tlutOffset32);
                     tex.palette = std::static_pointer_cast<TextureData>(tlutData->data.value());
-                } else {
+                } else if (pf.node["tlut_symbol"]) {
+                    auto tlutData = Companion::Instance->GetParseDataBySymbol(pf.node["tlut_symbol"].as<std::string>());
+                    tex.palette = std::static_pointer_cast<TextureData>(tlutData->data.value());
+                }
+                else if (pf.node["external_tlut"]) {
                     const auto externalTlutFile = GetSafeNode<std::string>(pf.node, "external_tlut");
                     const auto externalTlutOffset = GetSafeNode<uint32_t>(pf.node, "external_tlut_offset");
                     const auto externalSeg = Companion::Instance->GetFileSegmentNumber(externalTlutFile);
