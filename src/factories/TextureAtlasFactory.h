@@ -8,12 +8,15 @@ struct AtlasedTextures {
     std::shared_ptr<TextureData> texData = nullptr;
     std::shared_ptr<TextureData> palette = nullptr;
     uint32_t texOffset;
+    bool splitTlut = false;
 };
 
 class TextureAtlas : public IParsedData {
 public:
     std::vector<std::shared_ptr<AtlasedTextures>> textures;
-
+    std::unique_ptr<uint8_t[]> mAtlasData;
+    uint32_t mAtlasWidth;
+    uint32_t mAtlasHeight;
 };
 
 class TextureAtlasHeaderExporter : public BaseExporter {
@@ -35,7 +38,7 @@ class TextureAtlasModdingExporter : public BaseExporter {
 class TextureAtlasFactory : public BaseFactory {
 public:
     std::optional<std::shared_ptr<IParsedData>> parse(std::vector<uint8_t>& buffer, YAML::Node& data) override;
-    std::optional<std::shared_ptr<IParsedData>> parseLate(std::vector<ParseResultData>& parsedFiles);
+    std::optional<std::shared_ptr<IParsedData>> parseLate(YAML::Node& node, std::vector<ParseResultData>& parsedFiles);
     inline std::unordered_map<ExportType, std::shared_ptr<BaseExporter>> GetExporters() override {
         return {
             REGISTER(Header, TextureAtlasHeaderExporter)

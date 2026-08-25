@@ -276,6 +276,9 @@ static void ExportMoveMem(uint32_t& w0, uint32_t& w1) {
 static void ExportSetTImg(uint32_t& w0, uint32_t& w1,
                           LUS::BinaryWriter& writer, std::string* replacement) {
     auto ptr = w1;
+    if (ptr == 0x0A000000) {
+        int bp = 0;
+    }
     auto dec = Companion::Instance->GetSafeStringByAddr(ptr, "TEXTURE");
 
     if (dec.has_value()) {

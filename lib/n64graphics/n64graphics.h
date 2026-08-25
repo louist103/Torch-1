@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 
 // intermediate formats
 typedef struct _rgba
@@ -86,7 +87,7 @@ int ci2raw_torch(uint8_t* raw, const ci* img, int width, int height, int depth);
 uint8_t *ci2raw(const uint8_t *rawci, const uint8_t *palette, int width, int height, int ci_depth);
 
 // N64 CI raw data and palette to rgba32
-rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int height, int ci_depth);
+rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int height, int ci_depth, bool splitTlut);
 
 // convert from raw (RGBA16 or IA16) format to CI + palette
 int raw2ci(uint8_t *rawci, palette_t *pal, const uint8_t *raw, int raw_len, int ci_depth);

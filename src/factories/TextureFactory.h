@@ -8,9 +8,10 @@ public:
     TextureFormat mFormat;
     uint32_t mWidth = 0;
     uint32_t mHeight = 0;
-    uint32_t mAtlasX = 0;
-    uint32_t mAtlasY = 0;
+    uint32_t mAtlasX = -1;
+    uint32_t mAtlasY = -1;
     std::vector<uint8_t> mBuffer;
+    std::unique_ptr<char[]> mParentAtlas;
 
     TextureData(TextureFormat format, uint32_t width, uint32_t height, std::vector<uint8_t>& buffer) : mFormat(format), mWidth(width), mHeight(height), mBuffer(std::move(buffer)) {}
 };

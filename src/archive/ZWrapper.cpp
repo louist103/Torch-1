@@ -22,6 +22,9 @@ int32_t ZWrapper::CreateArchive() {
 bool ZWrapper::AddFile(const std::string& path, std::vector<char> data) {
     char* fileData = data.data();
     size_t fileSize = data.size();
+    if (path.find("../") != std::string::npos) {
+        int bp = 0;
+    }
 
     if (Companion::Instance != nullptr && Companion::Instance->IsDebug()) {
         SPDLOG_INFO("Creating debug file: debug/{}", path);

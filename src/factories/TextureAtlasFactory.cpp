@@ -18,6 +18,21 @@ ExportResult TextureAtlasCodeExporter::Export(std::ostream &write, std::shared_p
 }
 
 ExportResult TextureAtlasBinaryExporter::Export(std::ostream &write, std::shared_ptr<IParsedData> data, std::string &entryName, YAML::Node &node, std::string *replacement) {
+
+    auto writer = LUS::BinaryWriter();
+    auto texture = std::static_pointer_cast<TextureAtlas>(data);
+    uint32_t atlasDataSize = texture->mAtlasHeight * texture->mAtlasWidth * 4;
+    WriteHeader(writer, Torch::ResourceType::Texture, 0);
+
+
+    writer.Write((uint32_t)TextureType::RGBA32bpp);
+    writer.Write(texture->mAtlasWidth);
+    writer.Write(texture->mAtlasHeight);
+
+    writer.Write(atlasDataSize);
+    writer.Write((char*)texture->mAtlasData.get(), atlasDataSize);
+    writer.Finish(write);
+
     return std::nullopt;
 }
 
@@ -84,15 +99,16 @@ static bool AttemptToPackImages(int atlasWidth, int atlasHeight,
     return true;
 }
 
-static void BuildAtlasBinary(const std::unordered_map<std::shared_ptr<AtlasedTextures>, Vec2i>& imagePlacements, uint16_t atlasWidth, uint16_t atlasHeight) {
+static void BuildAtlasBinary(TextureAtlas* atlas, const std::unordered_map<std::shared_ptr<AtlasedTextures>, Vec2i>& imagePlacements, uint16_t atlasWidth, uint16_t atlasHeight) {
     size_t atlasSizeBytes = atlasWidth * atlasHeight * 4;
-    char* textureData = (char*)calloc(1, atlasSizeBytes); // use RGBA32
+    atlas->mAtlasData = std::make_unique<uint8_t[]>(atlasSizeBytes); // use RGBA32
+    uint8_t* textureData = atlas->mAtlasData.get();
     for (const auto& t : imagePlacements) {
         auto texData = t.first->texData.get();
         auto palette = t.first->palette.get();
 
-        auto width = t.first->texData->mWidth;
-        auto height = t.first->texData->mHeight;
+        atlas->mAtlasWidth = atlasWidth;
+        atlas->mAtlasHeight = atlasHeight;
         auto ulX = t.second.x;
         auto ulY = t.second.y;
 
@@ -116,7 +132,7 @@ static void BuildAtlasBinary(const std::unordered_map<std::shared_ptr<AtlasedTex
             }
             case TextureType::Palette4bpp:
             case TextureType::Palette8bpp: {
-                rgba* tex = ci2rgba32(texData->mBuffer.data(), palette->mBuffer.data(), texData->mWidth, texData->mHeight, texData->mFormat.depth);
+                rgba* tex = ci2rgba32(texData->mBuffer.data(), palette->mBuffer.data(), texData->mWidth, texData->mHeight, texData->mFormat.depth, t.first->splitTlut);
                 for (int y = 0; y < texData->mHeight; y++) {
                     for (int x = 0; x < texData->mWidth; x++) {
                         size_t dstIdx = ((ulY + y) * atlasWidth + (ulX + x)) * 4;
@@ -222,23 +238,31 @@ static uint32_t GetAtlasArea(const std::vector<std::shared_ptr<AtlasedTextures>>
     });
 }
 
-std::optional<std::shared_ptr<IParsedData>> TextureAtlasFactory::parseLate(std::vector<ParseResultData>& parsedFiles) {
+std::optional<std::shared_ptr<IParsedData>> TextureAtlasFactory::parseLate(YAML::Node& node, std::vector<ParseResultData>& parsedFiles) {
     std::shared_ptr<TextureAtlas> atlas = std::make_shared<TextureAtlas>();
     std::unordered_map<std::shared_ptr<AtlasedTextures>,Vec2i> imagePlacements;
     // Store all offsets listed as TLUTs so they aren't included in the atlas
     std::set<uint32_t> tlutOffsets;
+    auto fileName = node["file"].as<std::string>();
+    auto parentName = node["symbol"].as<std::string>();
     for (auto pf : parsedFiles) {
         if (pf.type == "TEXTURE") {
 
             AtlasedTextures tex;
             tex.texData = static_pointer_cast<TextureData>(pf.data.value());
+             tex.texData->mParentAtlas = std::make_unique<char[]>(parentName.length() + 1);
+             strcpy(tex.texData->mParentAtlas.get(), parentName.c_str());
+
             tex.texOffset = pf.GetOffset() & 0x00FFFFFF; // The segment was added but tlutOffsets doesn't use it
             if (tex.texData->mFormat.type == TextureType::Palette8bpp ||  tex.texData->mFormat.type == TextureType::Palette4bpp) {
-                auto curSegNum = Companion::Instance->GetCurrSegmentNumber();
+                auto curSegNum = Companion::Instance->GetFileSegmentNumber(fileName);
                 const auto tlutOffset = pf.node["tlut"];
+                if (pf.node["split_tlut"])
+                    tex.splitTlut = pf.node["split_tlut"].as<bool>();
+
                 if (tlutOffset) {
                     uint32_t tlutOffset32 = tlutOffset.as<uint32_t>();
-                    auto tlutData = Companion::Instance->GetParseDataByAddr(curSegNum << 24 | tlutOffset.as<uint32_t>());
+                    auto tlutData = Companion::Instance->GetParseDataByAddr(curSegNum << 24 | tlutOffset32);
                     tlutOffsets.insert(tlutOffset32);
                     tex.palette = std::static_pointer_cast<TextureData>(tlutData->data.value());
                 } else if (pf.node["tlut_symbol"]) {
@@ -249,7 +273,9 @@ std::optional<std::shared_ptr<IParsedData>> TextureAtlasFactory::parseLate(std::
                     const auto externalTlutFile = GetSafeNode<std::string>(pf.node, "external_tlut");
                     const auto externalTlutOffset = GetSafeNode<uint32_t>(pf.node, "external_tlut_offset");
                     const auto externalSeg = Companion::Instance->GetFileSegmentNumber(externalTlutFile);
-
+                    if (externalTlutFile == "ydan_boss_scene") {
+                        int bp = 0;
+                    }
                     auto tlutData = Companion::Instance->GetParseDataByAddr(externalSeg << 24 | externalTlutOffset);
                     tex.palette = std::static_pointer_cast<TextureData>(tlutData->data.value());
                 }
@@ -288,6 +314,6 @@ std::optional<std::shared_ptr<IParsedData>> TextureAtlasFactory::parseLate(std::
             //   F3D.");
         }
     }
-    BuildAtlasBinary(imagePlacements, size.width, size.height);
+    BuildAtlasBinary(atlas.get(), imagePlacements, size.width, size.height);
     return atlas;
 }

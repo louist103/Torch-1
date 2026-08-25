@@ -225,7 +225,7 @@ uint8_t* ci2raw(const uint8_t* rawci, const uint8_t* palette, int width, int hei
     return raw;
 }
 // TODO add support for split TLUT from ZAPD
-rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int height, int ci_depth) {
+rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int height, int ci_depth, bool splitTlut) {
     rgba* img;
     int raw_size;
     const int pixelDivisor = ci_depth == 8 ? 1 : 2;
@@ -256,6 +256,8 @@ rgba* ci2rgba32(const uint8_t* rawci, const uint8_t* palette, int width, int hei
         } else {
             pal_idx = rawci[i];
         }
+        if (splitTlut)
+            pal_idx -= 128;
         uint8_t a = palette[2 * pal_idx];
         uint8_t b = palette[2 * pal_idx + 1];
         img[i].red = SCALE_5_8((a & 0xF8) >> 3);

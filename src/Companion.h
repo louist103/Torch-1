@@ -127,7 +127,8 @@ struct ParseResultData {
     std::optional<std::shared_ptr<IParsedData>> data;
 
     uint32_t GetOffset() {
-        return GetSafeNode<uint32_t>(node, "offset");
+        uint32_t offset = GetSafeNode<uint32_t>(node, "offset");
+        return offset;
     }
 
     std::optional<std::string> GetSymbol() {
@@ -295,6 +296,7 @@ private:
     std::string gFileHeader;
     bool gEnablePadGen = false;
     bool mShouldProcess = true;
+    bool gBuildAtlas = true;
     uint32_t gCurrentPad = 0;
     uint32_t gCurrentFileOffset;
     std::unordered_map<std::string, uint32_t> gFileSegMap;
@@ -332,7 +334,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, uint8_t>> gNodesByTypeCacheValid;
     bool gCreateAtlas;
     void ProcessParseFile(YAML::Node root, std::atomic<size_t>& assetCount);
-    void ProcessExportFile();
+    void ProcessExportFile(const std::string& file);
     void ProcessFile(YAML::Node root);
     void ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount);
     std::optional<std::tuple<std::string, YAML::Node>> FindNodeInOverlaySegments(uint32_t addr, const std::string& file);
@@ -350,4 +352,5 @@ private:
     void ParseFilelist(const std::string& filelistPath);
     void SetSegmentInfo(const YAML::Node& segments);
     uint32_t GetFileOffsetFromNodeStr(const std::string& str) const;
+    void ClearTemporals();
 };

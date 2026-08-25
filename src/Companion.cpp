@@ -548,7 +548,7 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
                 std::string externalFileName = (this->gSourceDirectory / externalFile.as<std::string>()).string();
                 const auto relPath = std::filesystem::relative(externalFileName, this->gAssetPath).string();
                 const auto relCommonPath = std::filesystem::relative(externalFileName, this->gCommonAssetPath).string();
-                if (StringHelper::StartsWith(relPath , "../")) {
+                if (StringHelper::StartsWith(relPath, "../")) {
                     if (StringHelper::StartsWith(relCommonPath, "../"))
                         throw std::runtime_error("External File " + externalFileName + " Not In Asset Directory " +
                                                  this->gAssetPath);
@@ -593,6 +593,11 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
         }
     }
 
+    this->gCreateAtlas = true;
+    if (node["create_atlas"]) {
+        this->gCreateAtlas = node["create_atlas"].as<bool>();
+    }
+
     if (node["directory"]) {
         this->gCurrentDirectory = node["directory"].as<std::string>();
     }
@@ -631,9 +636,9 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
                 }
             } else {
                 throw std::runtime_error(
-                "Incorrect yaml syntax for segments.\n\nThe yaml expects:\n:config:\n  segments:\n  - [<segment>, "
-                "<file_offset>] or - [<segment>, "
-                "<file_name>] \n\nLike so:\nsegments:\n  - [0x06, 0x821D10] or [0x06, object_jya_obj");
+                    "Incorrect yaml syntax for segments.\n\nThe yaml expects:\n:config:\n  segments:\n  - [<segment>, "
+                    "<file_offset>] or - [<segment>, "
+                    "<file_name>] \n\nLike so:\nsegments:\n  - [0x06, 0x821D10] or [0x06, object_jya_obj");
             }
         }
 
@@ -868,15 +873,16 @@ void Companion::ProcessParseFile(YAML::Node root, std::atomic<size_t>& assetCoun
         SPDLOG_INFO("------------------------------------------------");
         spdlog::set_pattern(line);
     }
-
 }
 
-void Companion::ProcessExportFile() {
-    for (auto& result : this->gParseResults[this->gCurrentFile]) {
+void Companion::ProcessExportFile(const std::string& file) {
+    for (auto& result : this->gParseResults[file]) {
         std::ostringstream stream;
         ExportResult endptr = std::nullopt;
         WriteEntry wEntry;
-
+        if (result.node["type"] && result.node["type"].as<std::string>() == "TEXTURE_ATLAS") {
+            int bp = 0;
+        }
         this->gCurrentAssetName = "Exporting: " + result.name;
         if (this->gAssetCounter) {
             (*this->gAssetCounter)++;
@@ -891,7 +897,7 @@ void Companion::ProcessExportFile() {
         }
 
         if (mShouldProcess) {
-            try {
+            //try {
                 switch (this->gConfig.exporterType) {
                     case ExportType::Binary: {
                         // no_export: still parse it for the side effects — VTX sub-refs,
@@ -959,9 +965,9 @@ void Companion::ProcessExportFile() {
                         break;
                     }
                 }
-            } catch (const std::exception& e) {
-                throw std::runtime_error("Error exporting " + result.name + ": " + e.what());
-            }
+            //} catch (const std::exception& e) {
+            //    throw std::runtime_error("Error exporting " + result.name + ": " + e.what());
+           // }
         }
 
         this->gCompanionFiles.clear();
@@ -1212,9 +1218,10 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     // directory must be resolved before the loop. Default to the file's own
     // path, then honor a :config directory override (used to register a room's
     // assets under its scene's directory).
-    auto relPath = relative(fs::path(this->gCurrentFile), this->gAssetPath).replace_extension("");
+    const auto filePath = fs::path(this->gCurrentFile);
+    auto relPath = relative(filePath, this->gAssetPath).replace_extension("");
     if (StringHelper::StartsWith(relPath.string(), "../"))
-        relPath = relative(fs::path(this->gCurrentFile), this->gCommonAssetPath).replace_extension("");
+        relPath = relative(filePath, this->gCommonAssetPath).replace_extension("");
 
     this->gCurrentDirectory = relPath;
 
@@ -1226,6 +1233,9 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     } else {
         this->gCreateAtlas = true;
     }
+    if (this->gCurrentFile.find("gameplay_keep") != std::string::npos) {
+        int bp = 0;
+    }
     // Set compressed file offsets and compression type
     if (auto segments = root[":config"]["segments"]) {
         if (segments.IsSequence() && segments.size() > 0) {
@@ -1233,7 +1243,7 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
                 SetSegmentInfo(segments);
 
                 gCurrentCompressionType = Decompressor::GetCompressionType(this->gRomData, gCurrentFileOffset);
-                gFileSegMap[filePath.filename().stem()] = gCurrentSegmentNumber;
+                gFileSegMap[filePath.filename().stem().string()] = gCurrentSegmentNumber;
                 if (root[":config"]["no_compression"]) {
                     gCurrentCompressionType = CompressionType::None;
                 }
@@ -1272,7 +1282,6 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
             if (IS_SEGMENTED(offset) == false) {
                 offset = (gCurrentSegmentNumber << 24) | offset;
                 node["offset"] = offset;
-
             }
         }
 
@@ -1285,19 +1294,7 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
 
     // Stupid hack because the iteration broke the assets
     root = YAML::LoadFile(this->gCurrentFile);
-    this->gConfig.segment.local.clear();
-    this->gConfig.segment.compressed.clear();
-    this->gFileHeader.clear();
-    this->gCurrentPad = 0;
-    this->gCurrentVram = std::nullopt;
-    this->gCurrentVirtualPath = "";
-    this->gCurrentSegmentNumber = 0;
-    this->gCurrentCompressionType = CompressionType::None;
-    this->gCurrentFileOffset = 0;
-    this->gTables.clear();
-    this->gCurrentExternalFiles.clear();
-    this->gSubFileList.clear();
-    this->gManualSegments.clear();
+    ClearTemporals();
     GFXDOverride::ClearVtx();
 
     if (root[":config"]) {
@@ -1328,8 +1325,6 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
         }
         *this->gAssetTotal = total;
     }
-
-    ProcessExportFile();
 }
 
 std::vector<fs::directory_entry> Companion::GetAssetYMLs(YAML::Node& rom) const {
@@ -1706,133 +1701,159 @@ void Companion::Process(std::atomic<size_t>& assetCount) {
 
         if (!Torch::contains(this->gProcessedFiles, this->gCurrentFile)) {
             ProcessFile(root, assetCount);
-            if (this->gCreateAtlas) {
-                YAML::Node atlasNode;
-                YAML::Node atlasRoot;
-                atlasNode["type"] = "TEXTURE_ATLAS";
-                atlasNode["offset"] = "0x1234";
-                std::string name = this->gCurrentDirectory.filename().string() + "_Atlas";
-                atlasRoot[name]= atlasNode;
-
-                auto factory = this->GetFactory("TEXTURE_ATLAS");
-                auto taf = dynamic_cast<TextureAtlasFactory*>(factory->get());
-                taf->parseLate(this->gParseResults[this->gCurrentFile]);
-            } else {
-                int bp = 0;
-            }
             if (mShouldProcess) {
                 this->gProcessedFiles.insert(this->gCurrentFile);
             }
+        }
+    }
 
-            // Sub-files were already parsed when they got created, so all that's left is export.
-            auto parentDir = this->gCurrentDirectory;
+// Post parse pass. One day this should be similar to ZAPD's ParseRawDataLate
+    for (const auto& file: this->gProcessedFiles) {
+        YAML::Node root = YAML::LoadFile(file);
+        ClearTemporals();
+        this->ParseCurrentFileConfig(root[":config"], assetCount);
+        this->gCurrentFile = file;
+        if (this->gCreateAtlas) {
+            YAML::Node atlasNode;
+            YAML::Node atlasRoot;
+            atlasNode["type"] = "TEXTURE_ATLAS";
+            atlasNode["offset"] = 0x1234;
+            const auto relPath = std::filesystem::relative(file, this->gAssetPath);
+            const auto relCommonPath = std::filesystem::relative(file, this->gCommonAssetPath).string();
+            fs::path usingPath = relPath;
+            if (StringHelper::StartsWith(relPath, "../")) {
+                usingPath = relCommonPath;
+                if (StringHelper::StartsWith(relCommonPath, "../"))
+                    throw std::runtime_error("External File " + file + " Not In Asset Directory " +
+                                             this->gAssetPath);
+            }
+            //auto namePath = fs::relative(fs::path(file), this->GetAssetPath());
+            auto nameNoExt = usingPath.replace_extension("").string();
+            atlasNode["file"] = usingPath.stem().string();
+            atlasNode["symbol"] = nameNoExt + "_Atlas";
+            atlasRoot[usingPath.stem().string()] = atlasNode;
 
-            if (this->gConfig.exporterType == ExportType::Modding || this->gConfig.exporterType == ExportType::XML) {
-                // Modding export is parallel.
-                std::mutex moddedPathsMutex;
-                std::mutex dirCreateMutex;
-                // Torch is already running on a worker thread, so leave a core for the parent.
-                const unsigned int hwThreads = std::thread::hardware_concurrency();
-                const size_t numThreads = hwThreads > 1 ? hwThreads - 1 : 1u;
-                const size_t totalFiles = this->gSubFileList.size();
-                SPDLOG_CRITICAL("Exporting {} sub-files using {} threads", totalFiles, numThreads);
+            auto factory = this->GetFactory("TEXTURE_ATLAS");
+            auto taf = dynamic_cast<TextureAtlasFactory*>(factory->get());
+            auto atlasRes = taf->parseLate(atlasNode, this->gParseResults[file]);
+            if (atlasRes.has_value())
+                this->gParseResults[file].push_back(
+                    ParseResultData{ nameNoExt + "_Atlas", "TEXTURE_ATLAS", atlasNode, atlasRes.value() });
+        }
+    }
 
-                auto exportRange = [&](size_t start, size_t end) {
-                    for (size_t si = start; si < end; si++) {
-                        const auto subFile = this->gSubFileList[si];
-                        auto it = this->gParseResults.find(subFile);
-                        if (it == this->gParseResults.end() || it->second.empty()) {
-                            continue;
-                        }
+    for (const auto& file : this->gProcessedFiles) {
+        this->gCurrentFile = file;
+        ClearTemporals();
+        ProcessExportFile(file);
+        // Sub-files were already parsed when they got created, so all that's left is export.
+        auto parentDir = this->gCurrentDirectory;
 
-                        auto localDir = parentDir / subFile;
+        if (this->gConfig.exporterType == ExportType::Modding || this->gConfig.exporterType == ExportType::XML) {
+            // Modding export is parallel.
+            std::mutex moddedPathsMutex;
+            std::mutex dirCreateMutex;
+            // Torch is already running on a worker thread, so leave a core for the parent.
+            const unsigned int hwThreads = std::thread::hardware_concurrency();
+            const size_t numThreads = hwThreads > 1 ? hwThreads - 1 : 1u;
+            const size_t totalFiles = this->gSubFileList.size();
+            SPDLOG_CRITICAL("Exporting {} sub-files using {} threads", totalFiles, numThreads);
 
-                        for (auto& result : it->second) {
-                            const auto factory = this->GetFactory(result.type);
-                            if (!factory.has_value())
-                                continue;
-                            const auto impl = factory->get();
-                            const auto exporter = impl->GetExporter(this->gConfig.exporterType);
-                            if (!exporter.has_value())
-                                continue;
-
-                            try {
-                                std::ostringstream stream;
-                                std::string ogname = result.name;
-                                exporter->get()->Export(stream, result.data.value(), result.name, result.node,
-                                                        &result.name);
-
-                                auto data = stream.str();
-                                if (data.empty())
-                                    continue;
-
-                                std::string dpath = this->GetOutputPath() + "/" + result.name;
-                                {
-                                    std::lock_guard<std::mutex> lock(dirCreateMutex);
-                                    if (!exists(fs::path(dpath).parent_path())) {
-                                        create_directories(fs::path(dpath).parent_path());
-                                    }
-                                }
-
-                                std::ofstream file(dpath, std::ios::binary);
-                                file.write(data.c_str(), data.size());
-                                file.close();
-
-                                {
-                                    std::lock_guard<std::mutex> lock(moddedPathsMutex);
-                                    this->gModdedAssetPaths[ogname] = result.name;
-                                }
-                            } catch (const std::exception& e) {
-                                SPDLOG_ERROR("Sub-file export failed [{}] {}: {}", si, subFile, e.what());
-                            } catch (...) { SPDLOG_ERROR("Sub-file export crashed [{}] {}", si, subFile); }
-                        }
-
-                        if (this->gAssetCounter) {
-                            (*this->gAssetCounter)++;
-                        }
-                    }
-                };
-
-                std::vector<std::thread> threads;
-                size_t chunkSize = (totalFiles + numThreads - 1) / numThreads;
-                for (size_t t = 0; t < numThreads; t++) {
-                    size_t start = t * chunkSize;
-                    size_t end = std::min(start + chunkSize, totalFiles);
-                    if (start < end) {
-                        threads.emplace_back(exportRange, start, end);
-                    }
-                }
-                for (auto& t : threads) {
-                    t.join();
-                }
-                SPDLOG_CRITICAL("Parallel export complete: {} modded assets", this->gModdedAssetPaths.size());
-
-                // gModdedAssetPaths is only filled once the threads finish, so write modding.yml here.
-                if (mShouldProcess) {
-                    auto moddingPath = fs::path(this->gConfig.outputPath) / "modding.yml";
-                    YAML::Node modding;
-                    for (const auto& [key, value] : this->gModdedAssetPaths) {
-                        modding["assets"][key] = value;
-                    }
-                    std::ofstream moddingFile(moddingPath.string(), std::ios::binary);
-                    moddingFile << modding;
-                    moddingFile.close();
-                }
-            } else {
-                // Binary/code/header all share wrapper state, so these have to go one at a time.
-                for (size_t si = 0; si < this->gSubFileList.size(); si++) {
+            auto exportRange = [&](size_t start, size_t end) {
+                for (size_t si = start; si < end; si++) {
                     const auto subFile = this->gSubFileList[si];
-                    this->gCurrentDirectory = parentDir / subFile;
-                    this->gCurrentFile = subFile;
-                    if (!this->gProcessedFiles.contains(subFile)) {
+                    auto it = this->gParseResults.find(subFile);
+                    if (it == this->gParseResults.end() || it->second.empty()) {
+                        continue;
+                    }
+
+                    auto localDir = parentDir / subFile;
+
+                    for (auto& result : it->second) {
+                        const auto factory = this->GetFactory(result.type);
+                        if (!factory.has_value())
+                            continue;
+                        const auto impl = factory->get();
+                        const auto exporter = impl->GetExporter(this->gConfig.exporterType);
+                        if (!exporter.has_value())
+                            continue;
+
                         try {
-                            ProcessExportFile();
+                            std::ostringstream stream;
+                            std::string ogname = result.name;
+                            exporter->get()->Export(stream, result.data.value(), result.name, result.node,
+                                                    &result.name);
+
+                            auto data = stream.str();
+                            if (data.empty())
+                                continue;
+
+                            std::string dpath = this->GetOutputPath() + "/" + result.name;
+                            {
+                                std::lock_guard<std::mutex> lock(dirCreateMutex);
+                                if (!exists(fs::path(dpath).parent_path())) {
+                                    create_directories(fs::path(dpath).parent_path());
+                                }
+                            }
+
+                            std::ofstream file(dpath, std::ios::binary);
+                            file.write(data.c_str(), data.size());
+                            file.close();
+
+                            {
+                                std::lock_guard<std::mutex> lock(moddedPathsMutex);
+                                this->gModdedAssetPaths[ogname] = result.name;
+                            }
                         } catch (const std::exception& e) {
                             SPDLOG_ERROR("Sub-file export failed [{}] {}: {}", si, subFile, e.what());
                         } catch (...) { SPDLOG_ERROR("Sub-file export crashed [{}] {}", si, subFile); }
-                        if (mShouldProcess) {
-                            this->gProcessedFiles.insert(subFile);
-                        }
+                    }
+
+                    if (this->gAssetCounter) {
+                        (*this->gAssetCounter)++;
+                    }
+                }
+            };
+
+            std::vector<std::thread> threads;
+            size_t chunkSize = (totalFiles + numThreads - 1) / numThreads;
+            for (size_t t = 0; t < numThreads; t++) {
+                size_t start = t * chunkSize;
+                size_t end = std::min(start + chunkSize, totalFiles);
+                if (start < end) {
+                    threads.emplace_back(exportRange, start, end);
+                }
+            }
+            for (auto& t : threads) {
+                t.join();
+            }
+            SPDLOG_CRITICAL("Parallel export complete: {} modded assets", this->gModdedAssetPaths.size());
+
+            // gModdedAssetPaths is only filled once the threads finish, so write modding.yml here.
+            if (mShouldProcess) {
+                auto moddingPath = fs::path(this->gConfig.outputPath) / "modding.yml";
+                YAML::Node modding;
+                for (const auto& [key, value] : this->gModdedAssetPaths) {
+                    modding["assets"][key] = value;
+                }
+                std::ofstream moddingFile(moddingPath.string(), std::ios::binary);
+                moddingFile << modding;
+                moddingFile.close();
+            }
+        } else {
+            // Binary/code/header all share wrapper state, so these have to go one at a time.
+            for (size_t si = 0; si < this->gSubFileList.size(); si++) {
+                const auto subFile = this->gSubFileList[si];
+                this->gCurrentDirectory = parentDir / subFile;
+                this->gCurrentFile = subFile;
+                if (!this->gProcessedFiles.contains(subFile)) {
+                    try {
+                        ProcessExportFile(subFile);
+                    } catch (const std::exception& e) {
+                        SPDLOG_ERROR("Sub-file export failed [{}] {}: {}", si, subFile, e.what());
+                    } catch (...) { SPDLOG_ERROR("Sub-file export crashed [{}] {}", si, subFile); }
+                    if (mShouldProcess) {
+                        this->gProcessedFiles.insert(subFile);
                     }
                 }
             }
@@ -2661,6 +2682,21 @@ void Companion::ParseFilelist(const std::string& filelistPath) {
             const auto offset = kv.second.as<uint32_t>();
             gFileOffsets[file] = offset;
         }
-
     }
+}
+// TODO don't like this name
+void Companion::ClearTemporals() {
+    this->gConfig.segment.local.clear();
+    this->gConfig.segment.compressed.clear();
+    this->gFileHeader.clear();
+    this->gCurrentPad = 0;
+    this->gCurrentVram = std::nullopt;
+    this->gCurrentVirtualPath = "";
+    this->gCurrentSegmentNumber = 0;
+    this->gCurrentCompressionType = CompressionType::None;
+    this->gCurrentFileOffset = 0;
+    this->gTables.clear();
+    this->gCurrentExternalFiles.clear();
+    this->gSubFileList.clear();
+    this->gManualSegments.clear();
 }
