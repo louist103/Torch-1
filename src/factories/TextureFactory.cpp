@@ -181,7 +181,7 @@ ExportResult TextureBinaryExporter::Export(std::ostream& write, std::shared_ptr<
     auto writer = LUS::BinaryWriter();
     auto texture = std::static_pointer_cast<TextureData>(raw);
     auto& data = texture->mBuffer;
-    if (texture->mAtlasX != -1) {
+    if (texture->mAtlasX != -1 ) {
         WriteHeader(writer, Torch::ResourceType::Texture, 2);
 
         writer.Write((uint32_t)texture->mFormat.type);

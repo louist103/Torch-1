@@ -128,9 +128,9 @@ _DW({                                                                           
 
 #define gsSP1TriangleOTR(v0, v1, v2, flag) \
     { _SHIFTL(G_TRI1_OTR, 24, 8) | __gsSP1Triangle_w1f(v0, v1, v2, flag), 0 }
-
-#define gsSPVertexOTR(v, n, v0) \
-    { (_SHIFTL(G_VTX_OTR_HASH, 24, 8) | _SHIFTL((n), 12, 8) | _SHIFTL((v0) + (n), 1, 7)), (uint32_t)(v) }
+// Mode refers to a byte offset or a index offset. 1 is index, 0 is byte
+#define gsSPVertexOTR(v, n, v0, mode) \
+    { (_SHIFTL(G_VTX_OTR_HASH, 24, 8) | _SHIFTL((n), 12, 8) | _SHIFTL((v0) + (n), 1, 7) | (mode & 1)), (uint32_t)(v) }
 
 #define gsSPRawOpcode(opcode) \
     { _SHIFTL(opcode, 24, 8), 0 }

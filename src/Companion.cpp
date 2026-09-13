@@ -562,13 +562,12 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
                     SPDLOG_INFO("Dependency on external file {}. Now processing {}", externalFileName,
                                 externalFileName);
                     auto currentFile = this->gCurrentFile;
-                    auto currentDirectory = this->gCurrentDirectory;
+                    auto currentDirectory = GetCurrentDirectory(currentFile);
                     auto currentExternalFiles = this->gCurrentExternalFiles;
                     auto currentVirtualPath = this->gCurrentVirtualPath;
 
                     this->gCurrentFile = externalFileName;
-                    this->gCurrentDirectory =
-                        std::filesystem::relative(externalFileName, this->gAssetPath).replace_extension("");
+                    SetCurrentDirectory(this->gCurrentFile, std::filesystem::relative(externalFileName, this->gAssetPath).replace_extension(""));
 
                     YAML::Node root = YAML::LoadFile(externalFileName);
 
@@ -582,7 +581,7 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
                     SPDLOG_INFO("Finishing processing of file: {}", currentFile);
 
                     this->gCurrentFile = currentFile;
-                    this->gCurrentDirectory = currentDirectory;
+                    SetCurrentDirectory(currentFile, currentDirectory);
                     this->gCurrentExternalFiles = currentExternalFiles;
                     this->gCurrentVirtualPath = currentVirtualPath;
                     this->gFileHeader.clear();
@@ -599,7 +598,7 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
     }
 
     if (node["directory"]) {
-        this->gCurrentDirectory = node["directory"].as<std::string>();
+        SetCurrentDirectory(this->gCurrentFile, node["directory"].as<std::string>());
     }
 
     if (node["manual_segments"]) {
@@ -861,7 +860,7 @@ void Companion::ProcessParseFile(YAML::Node root, std::atomic<size_t>& assetCoun
             assetNode["path"] = gCurrentVirtualPath;
         }
 
-        std::string output = (this->gCurrentDirectory / entryName).string();
+        std::string output = GetCurrentDirectory(this->gCurrentFile) / entryName;
         std::replace(output.begin(), output.end(), '\\', '/');
         this->gConfig.segment.temporal.clear();
         auto result = this->ParseNode(assetNode, output);
@@ -916,7 +915,7 @@ void Companion::ProcessExportFile(const std::string& file) {
                         }
 
                         for (auto& entry : this->gCompanionFiles) {
-                            auto output = (this->gCurrentDirectory / entry.first).string();
+                            auto output = entry.first;//(this->gCurrentDirectory / entry.first).string();
                             std::replace(output.begin(), output.end(), '\\', '/');
                             this->gCurrentWrapper->AddFile(output, entry.second);
                         }
@@ -947,7 +946,7 @@ void Companion::ProcessExportFile(const std::string& file) {
                         file.close();
 
                         for (auto& entry : this->gCompanionFiles) {
-                            auto cpath = (Instance->GetOutputPath() / this->gCurrentDirectory / entry.first).string();
+                            auto cpath = entry.first;//(Instance->GetOutputPath() / this->gCurrentDirectory / entry.first).string();
                             std::replace(cpath.begin(), cpath.end(), '\\', '/');
                             if (!exists(fs::path(cpath).parent_path())) {
                                 create_directories(fs::path(cpath).parent_path());
@@ -1021,15 +1020,16 @@ void Companion::ProcessExportFile(const std::string& file) {
             file << modding;
             file.close();
         } else if (this->gConfig.exporterType != ExportType::Binary) {
-            std::string filename = this->gCurrentDirectory.filename().string();
+            const auto currentDir = GetCurrentDirectory(file);
+            std::string filename = currentDir.filename().string();
 
             switch (this->gConfig.exporterType) {
                 case ExportType::Header: {
-                    fsout /= this->gCurrentDirectory.parent_path() / (filename + ".h");
+                    fsout /= currentDir.parent_path() / (filename + ".h");
                     break;
                 }
                 case ExportType::Code: {
-                    fsout /= this->gCurrentDirectory / (filename + ".c");
+                    fsout /= currentDir / (filename + ".c");
                     break;
                 }
                 default:
@@ -1099,7 +1099,7 @@ void Companion::ProcessExportFile(const std::string& file) {
                         SPDLOG_WARN("Gap detected between 0x{:X} and 0x{:X} with size 0x{:X} on file {}", startptr, end,
                                     gap, this->gCurrentFile);
                         SPDLOG_WARN("Creating pad of 0x{:X} bytes", gap);
-                        const auto padfile = this->gCurrentDirectory.filename().string();
+                        const auto padfile = currentDir.filename().string();
                         if (this->IsDebug()) {
                             stream << "// 0x" << std::hex << std::uppercase << startptr << "\n";
                         }
@@ -1122,8 +1122,8 @@ void Companion::ProcessExportFile(const std::string& file) {
 
                 if (this->gConfig.exporterType == ExportType::Code && this->gIndividualIncludes) {
                     fs::path outinc =
-                        fs::path(this->gConfig.outputPath) / this->gCurrentDirectory.parent_path() /
-                        fs::relative(fs::path(result.name + ".inc.c"), this->gCurrentDirectory.parent_path());
+                        fs::path(this->gConfig.outputPath) / currentDir.parent_path() /
+                        fs::relative(fs::path(result.name + ".inc.c"), currentDir.parent_path());
 
                     if (!exists(outinc.parent_path())) {
                         create_directories(outinc.parent_path());
@@ -1222,12 +1222,13 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     auto relPath = relative(filePath, this->gAssetPath).replace_extension("");
     if (StringHelper::StartsWith(relPath.string(), "../"))
         relPath = relative(filePath, this->gCommonAssetPath).replace_extension("");
+    auto currentDir = relPath;
 
-    this->gCurrentDirectory = relPath;
 
-    if (auto directory = root[":config"]["directory"]) {
-        this->gCurrentDirectory = directory.as<std::string>();
-    }
+    if (auto directory = root[":config"]["directory"])
+        currentDir = directory.as<std::string>();
+    SetCurrentDirectory(filePath, currentDir);
+
     if (auto createAtlas = root[":config"]["createatlas"]) {
         this->gCreateAtlas = createAtlas.as<bool>();
     } else {
@@ -1259,7 +1260,7 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     for (auto asset = root.begin(); asset != root.end(); ++asset) {
         auto node = asset->second;
         auto entryName = asset->first.as<std::string>();
-        auto output = (this->gCurrentDirectory / entryName).string();
+        auto output = (this->GetCurrentDirectory(this->gCurrentFile) / entryName).string();
         std::replace(output.begin(), output.end(), '\\', '/');
 
         if (node["type"]) {
@@ -1295,7 +1296,7 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     // Stupid hack because the iteration broke the assets
     root = YAML::LoadFile(this->gCurrentFile);
     ClearTemporals();
-    GFXDOverride::ClearVtx();
+    //GFXDOverride::ClearVtx();
 
     if (root[":config"]) {
         this->ParseCurrentFileConfig(root[":config"], assetCount);
@@ -1711,8 +1712,8 @@ void Companion::Process(std::atomic<size_t>& assetCount) {
     for (const auto& file: this->gProcessedFiles) {
         YAML::Node root = YAML::LoadFile(file);
         ClearTemporals();
-        this->ParseCurrentFileConfig(root[":config"], assetCount);
         this->gCurrentFile = file;
+        this->ParseCurrentFileConfig(root[":config"], assetCount);
         if (this->gCreateAtlas) {
             YAML::Node atlasNode;
             YAML::Node atlasRoot;
@@ -1745,9 +1746,15 @@ void Companion::Process(std::atomic<size_t>& assetCount) {
     for (const auto& file : this->gProcessedFiles) {
         this->gCurrentFile = file;
         ClearTemporals();
+        YAML::Node root = YAML::LoadFile(file);
+        if (file == "/home/louist103/projects/Shipwright-1/soh/assets/yml/pal_mq_dbg/textures/nintendo_rogo_static.yml") {
+            int bp = 0;
+        }
+        ParseCurrentFileConfig(root[":config"], assetCount);
+
         ProcessExportFile(file);
         // Sub-files were already parsed when they got created, so all that's left is export.
-        auto parentDir = this->gCurrentDirectory;
+        auto parentDir = GetCurrentDirectory(file);
 
         if (this->gConfig.exporterType == ExportType::Modding || this->gConfig.exporterType == ExportType::XML) {
             // Modding export is parallel.
@@ -1844,7 +1851,7 @@ void Companion::Process(std::atomic<size_t>& assetCount) {
             // Binary/code/header all share wrapper state, so these have to go one at a time.
             for (size_t si = 0; si < this->gSubFileList.size(); si++) {
                 const auto subFile = this->gSubFileList[si];
-                this->gCurrentDirectory = parentDir / subFile;
+                //this->gCurrentDirectory = parentDir / subFile;
                 this->gCurrentFile = subFile;
                 if (!this->gProcessedFiles.contains(subFile)) {
                     try {
@@ -1978,8 +1985,8 @@ std::optional<std::tuple<std::string, YAML::Node>> Companion::RegisterAsset(cons
     if (!node["offset"]) {
         return std::nullopt;
     }
-
-    auto output = (this->gCurrentDirectory / name).string();
+    const auto currentDir = GetCurrentDirectory(gCurrentFile);
+    auto output = (currentDir / name).string();
     std::replace(output.begin(), output.end(), '\\', '/');
 
     auto entry = std::make_tuple(output, node);
@@ -2501,7 +2508,7 @@ static std::string& ConvertWinToUnixSlash(std::string& path) {
 }
 
 std::string Companion::RelativePath(const std::string& path) const {
-    std::string doutput = (this->gCurrentDirectory / path).string();
+    std::string doutput = (GetCurrentDirectory(this->gCurrentFile) / path).string();
     ConvertWinToUnixSlash(doutput);
     return doutput;
 }

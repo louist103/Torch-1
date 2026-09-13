@@ -286,7 +286,7 @@ void AudioFontWriter::WriteFontCompanion(uint32_t fontIndex, const AudioTableEnt
     w.Finish(ss);
     std::string str = ss.str();
     Companion::Instance->RegisterCompanionFile(
-        "fonts/" + fontName, std::vector<char>(str.begin(), str.end()));
+        "audio/fonts/" + fontName, std::vector<char>(str.begin(), str.end()));
 }
 
 void AudioFontWriter::Extract(YAML::Node& node,

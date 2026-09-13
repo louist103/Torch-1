@@ -169,7 +169,7 @@ void SceneCommandWriter::WriteSetActorList(LUS::BinaryWriter& w, uint8_t cmdArg1
     if (cmdArg2 != 0 && count > 0) {
         uint32_t actorOffset = SEGMENT_OFFSET(Companion::Instance->PatchVirtualAddr(cmdArg2));
         std::string actorSymbol = MakeAssetName(ctx.baseName, "ActorEntry", actorOffset);
-        Companion::Instance->RegisterCompanionFile(actorSymbol, std::vector<char>{});
+        Companion::Instance->RegisterCompanionFile(ctx.currentDir + "/" + actorSymbol, std::vector<char>{});
     }
 }
 
@@ -493,7 +493,7 @@ void SceneCommandWriter::WriteSetMesh(LUS::BinaryWriter& w, uint32_t cmdArg2, Sc
             w.Write(fmt); w.Write(siz);
             w.Write(mode0); w.Write(tlutCount);
 
-            CreateBackgroundCompanion(ctx.buffer, source, bgSymbol);
+            CreateBackgroundCompanion(ctx.buffer, source, bgPath);
         }
 
         if (polyDListAddr != 0) {
@@ -580,7 +580,7 @@ void SceneCommandWriter::WriteSetPathways(LUS::BinaryWriter& w, uint32_t cmdArg2
         uint32_t pointOffset = SEGMENT_OFFSET(ptsAddr);
         std::string pathSymbol = MakeAssetName(ctx.baseName, "PathwayList", pointOffset);
         auto pathData = SerializePathways(ctx.buffer, pathways, writeCount, repeats);
-        Companion::Instance->RegisterCompanionFile(pathSymbol, pathData);
+        Companion::Instance->RegisterCompanionFile(ctx.currentDir + "/" + pathSymbol, pathData);
     }
 }
 
@@ -602,7 +602,7 @@ void SceneCommandWriter::WriteSetCutscenes(LUS::BinaryWriter& w, uint32_t cmdArg
     if (csData.empty()) {
         SPDLOG_WARN("Scene: Skipping cutscene {} due to parse failure", csSymbol);
     }
-    Companion::Instance->RegisterCompanionFile(csSymbol, csData);
+    Companion::Instance->RegisterCompanionFile(ctx.currentDir + "/" + csSymbol, csData);
 }
 
 void SceneCommandWriter::WriteSetAlternateHeaders(LUS::BinaryWriter& w, uint32_t cmdArg2, SceneWriteContext& ctx) {

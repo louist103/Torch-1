@@ -13,7 +13,7 @@
 
 namespace GFXDOverride {
 
-std::unordered_map<uint32_t, std::tuple<std::string, YAML::Node>> mVtxOverlaps;
+std::unordered_map<std::string, std::unordered_map<uint32_t, std::tuple<std::string, YAML::Node>>> mVtxOverlaps;
 
 #ifdef STANDALONE
 void Triangle2(const N64Gfx* gfx) {
@@ -54,7 +54,8 @@ void Quadrangle(const N64Gfx* gfx) {
 
 int Vtx(uint32_t ptr, int32_t num) {
     ptr = Companion::Instance->PatchVirtualAddr(ptr);
-    auto vtx = GetVtxOverlap(ptr);
+    auto file = Companion::Instance->GetCurrentFile();
+    auto vtx = GetVtxOverlap(ptr, file);
 
     if (vtx.has_value()) {
         auto symbol = std::get<0>(vtx.value());
@@ -74,7 +75,7 @@ int Vtx(uint32_t ptr, int32_t num) {
     }
 
     if (IS_SEGMENTED(ptr) && Companion::Instance->GetCompressedSegmentOffset(&ptr)) {
-        vtx = GetVtxOverlap(ptr);
+        vtx = GetVtxOverlap(ptr, file);
         if (vtx.has_value()) {
             auto symbol = std::get<0>(vtx.value());
             auto node = std::get<1>(vtx.value());
@@ -223,10 +224,12 @@ int Matrix(uint32_t ptr) {
 }
 #endif
 
-std::optional<std::tuple<std::string, YAML::Node>> GetVtxOverlap(uint32_t ptr) {
-    if (Torch::contains(mVtxOverlaps, ptr)) {
-        SPDLOG_INFO("Found overlap for ptr 0x{:X}", ptr);
-        return mVtxOverlaps[ptr];
+std::optional<std::tuple<std::string, YAML::Node>> GetVtxOverlap(uint32_t ptr, const std::string& file) {
+    if (Torch::contains(mVtxOverlaps, file)) {
+        if (Torch::contains(mVtxOverlaps.at(file), ptr)) {
+            SPDLOG_INFO("Found overlap for ptr 0x{:X}", ptr);
+            return mVtxOverlaps.at(file)[ptr];
+        }
     }
 
     SPDLOG_TRACE("Failed to find overlap for ptr 0x{:X}", ptr);
@@ -234,8 +237,11 @@ std::optional<std::tuple<std::string, YAML::Node>> GetVtxOverlap(uint32_t ptr) {
     return std::nullopt;
 }
 
-void RegisterVTXOverlap(uint32_t ptr, std::tuple<std::string, YAML::Node>& vtx) {
-    mVtxOverlaps[ptr] = vtx;
+void RegisterVTXOverlap(uint32_t ptr, std::tuple<std::string, YAML::Node>& vtx, const std::string& file) {
+    if (ptr == 16784432) {
+        int bp = 0;
+    }
+    mVtxOverlaps[file][ptr] = vtx;
     SPDLOG_INFO("Register overlap for ptr 0x{:X}", ptr);
 }
 

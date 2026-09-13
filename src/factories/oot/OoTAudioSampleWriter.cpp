@@ -118,7 +118,7 @@ void AudioSampleWriter::WriteCompanionFiles(const std::map<uint32_t, SampleInfo>
         w.Finish(ss);
         std::string str = ss.str();
         Companion::Instance->RegisterCompanionFile(
-            "samples/" + s.name + "_META", std::vector<char>(str.begin(), str.end()));
+            "audio/samples/" + s.name + "_META", std::vector<char>(str.begin(), str.end()));
     }
 
     SPDLOG_INFO("OoTAudioFactory: wrote {} sample companion files", sampleMap.size());

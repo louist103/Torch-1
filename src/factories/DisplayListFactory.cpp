@@ -242,7 +242,7 @@ ExportResult DListBinaryExporter::Export(std::ostream& write, std::shared_ptr<IP
     auto ootResult = OoT::DListHelpers::Export(write, raw, entryName, node, replacement);
     if (ootResult.has_value()) return ootResult.value();
 #endif
-
+    auto file = Companion::Instance->GetCurrentFile();
     const auto gbi = Companion::Instance->GetGBIVersion();
     auto cmds = std::static_pointer_cast<DListData>(raw)->mGfxs;
     auto writer = LUS::BinaryWriter();
@@ -287,11 +287,11 @@ ExportResult DListBinaryExporter::Export(std::ostream& write, std::shared_ptr<IP
 
             auto ptr = Companion::Instance->PatchVirtualAddr(w1);
 
-            auto overlap = GFXDOverride::GetVtxOverlap(ptr);
+            auto overlap = GFXDOverride::GetVtxOverlap(ptr, file);
             if (!overlap.has_value() && IS_SEGMENTED(ptr)) {
                 uint32_t flatPtr = ptr;
                 if (Companion::Instance->GetCompressedSegmentOffset(&flatPtr)) {
-                    overlap = GFXDOverride::GetVtxOverlap(flatPtr);
+                    overlap = GFXDOverride::GetVtxOverlap(flatPtr, file);
                     if (overlap.has_value())
                         ptr = flatPtr;
                 }
@@ -311,7 +311,7 @@ ExportResult DListBinaryExporter::Export(std::ostream& write, std::shared_ptr<IP
                 auto count = GetSafeNode<uint32_t>(ovnode, "count");
                 auto diff = ASSET_PTR(ptr) - ASSET_PTR(offset);
 
-                N64Gfx value = gsSPVertexOTR(diff, nvtx, didx);
+                N64Gfx value = gsSPVertexOTR(diff, nvtx, didx, 0);
 
                 SPDLOG_INFO("gsSPVertexOTR({}, {}, {})", diff, nvtx, didx);
 
@@ -333,7 +333,7 @@ ExportResult DListBinaryExporter::Export(std::ostream& write, std::shared_ptr<IP
 
                     SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, dec.value());
 
-                    N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
+                    N64Gfx value = gsSPVertexOTR(0, nvtx, didx, 0);
 
                     SPDLOG_INFO("gsSPVertex({}, {}, 0x{:X})", nvtx, didx, ptr);
 
@@ -530,7 +530,7 @@ std::optional<std::shared_ptr<IParsedData>> DListFactory::parse(std::vector<uint
 #endif
 
     const auto gbi = Companion::Instance->GetGBIVersion();
-
+    auto file = Companion::Instance->GetCurrentFile();
     auto count = GetSafeNode<int32_t>(node, "count", -1);
     auto [_, segment] = Decompressor::AutoDecode(node, raw_buffer);
     LUS::BinaryReader reader(segment.data, segment.size);
@@ -657,13 +657,13 @@ std::optional<std::shared_ptr<IParsedData>> DListFactory::parse(std::vector<uint
 
                     if (adjPtr > lOffset && adjPtr <= lOffset + lSize) {
                         SPDLOG_INFO("Found vtx at 0x{:X} matching last vtx at 0x{:X}", adjPtr, lOffset);
-                        GFXDOverride::RegisterVTXOverlap(adjPtr, search.value());
+                        GFXDOverride::RegisterVTXOverlap(adjPtr, search.value(), file);
                     }
 
                     if (IS_SEGMENTED(adjPtr) && Companion::Instance->GetCompressedSegmentOffset(&adjPtr)) {
                         if (adjPtr > lOffset && adjPtr < lOffset + lSize) {
                             SPDLOG_INFO("Found vtx at 0x{:X} matching last vtx at 0x{:X}", adjPtr, lOffset);
-                            GFXDOverride::RegisterVTXOverlap(adjPtr, search.value());
+                            GFXDOverride::RegisterVTXOverlap(adjPtr, search.value(), file);
                         }
                     }
                 } else {

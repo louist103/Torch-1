@@ -28,7 +28,7 @@ void AudioSequenceWriter::WriteCompanion(const uint8_t* seqData, uint32_t seqSiz
     w.Finish(ss);
     std::string str = ss.str();
     Companion::Instance->RegisterCompanionFile(
-        "sequences/" + seqName, std::vector<char>(str.begin(), str.end()));
+        "audio/sequences/" + seqName, std::vector<char>(str.begin(), str.end()));
 }
 
 bool AudioSequenceWriter::Extract(std::vector<uint8_t>& buffer, YAML::Node& node,

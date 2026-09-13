@@ -246,5 +246,8 @@ u64 CRC64(const char* t)
     while (*s) {
         crc = CRC64_Table[(u8)(crc >> 56) ^ *s++] ^ (crc << 8);
     }
+    if (crc == 432347780430693382) {
+        int bp = 0;
+    }
     return crc;
 }

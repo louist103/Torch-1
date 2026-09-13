@@ -79,7 +79,9 @@ void LUS::BinaryWriter::Write(uint32_t value) {
     if (mEndianness != Torch::Endianness::Native) {
         value = BSWAP32(value);
     }
-
+    if (value == 0x06000204) {
+        int bp = 0;
+    }
     mStream->Write((char*)&value, sizeof(uint32_t));
 }
 

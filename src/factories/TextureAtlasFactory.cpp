@@ -61,6 +61,7 @@ static bool AttemptToPackImages(int atlasWidth, int atlasHeight,
     current.y = PADDING_SIZE;
     int currentHeight = 0;
     for (const auto& tex : textures) {
+        //if (tex->name == "textures/icon_item_static/gABtnSymbolTex")
         uint32_t width = tex->texData->mWidth + PADDING_SIZE;
         uint32_t height = tex->texData->mHeight + PADDING_SIZE;
 
@@ -252,7 +253,7 @@ std::optional<std::shared_ptr<IParsedData>> TextureAtlasFactory::parseLate(YAML:
             tex.texData = static_pointer_cast<TextureData>(pf.data.value());
              tex.texData->mParentAtlas = std::make_unique<char[]>(parentName.length() + 1);
              strcpy(tex.texData->mParentAtlas.get(), parentName.c_str());
-
+            tex.name = pf.name;
             tex.texOffset = pf.GetOffset() & 0x00FFFFFF; // The segment was added but tlutOffsets doesn't use it
             if (tex.texData->mFormat.type == TextureType::Palette8bpp ||  tex.texData->mFormat.type == TextureType::Palette4bpp) {
                 auto curSegNum = Companion::Instance->GetFileSegmentNumber(fileName);

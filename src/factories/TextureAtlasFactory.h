@@ -9,6 +9,7 @@ struct AtlasedTextures {
     std::shared_ptr<TextureData> palette = nullptr;
     uint32_t texOffset;
     bool splitTlut = false;
+    std::string name;
 };
 
 class TextureAtlas : public IParsedData {

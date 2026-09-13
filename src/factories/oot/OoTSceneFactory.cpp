@@ -90,7 +90,7 @@ std::optional<std::shared_ptr<IParsedData>> OoTSceneFactory::parse(std::vector<u
     }
 
     auto entryName = GetSafeNode<std::string>(node, "symbol");
-    auto currentDir = Companion::Instance->GetCurrentDirectory();
+    auto currentDir = Companion::Instance->GetCurrentDirectory(Companion::Instance->GetCurrentFile());
     auto assetType = GetSafeNode<std::string>(node, "type");
     std::string baseName = node["base_name"] ? node["base_name"].as<std::string>() : entryName;
     bool isAltHeader = node["base_name"].IsDefined();

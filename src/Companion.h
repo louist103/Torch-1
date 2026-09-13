@@ -136,6 +136,11 @@ struct ParseResultData {
     }
 };
 
+// Configs that apply per YML file
+struct ConfigCache {
+    fs::path gCurrentDirectory;
+};
+
 class Companion {
 public:
     static Companion* Instance;
@@ -251,7 +256,13 @@ public:
     std::optional<std::tuple<std::string, YAML::Node>> RegisterAsset(const std::string& name, YAML::Node& node);
     std::optional<YAML::Node> AddSubFileAsset(YAML::Node asset, std::string newFileName, CompressionType newCompressionType, uint32_t compressedSize = 0);
     std::optional<YAML::Node> AddAsset(YAML::Node asset);
-    std::string GetCurrentDirectory() const { return gCurrentDirectory.generic_string(); }
+    void SetCurrentDirectory(const std::string& file, const fs::path& path) {
+        if (path == "scenes/shared/moribossroom_scene") {
+            int bp = 0;
+        }
+        gConfigCache[file].gCurrentDirectory = path;
+    }
+    fs::path GetCurrentDirectory(const std::string& file) const { return gConfigCache.at(file).gCurrentDirectory; }
     void SetCompressedSegment(uint32_t segmentId, uint32_t compressedFileOffset, uint32_t offset);
     bool GetCompressedSegmentOffset(uint32_t* addr);
 
@@ -268,7 +279,7 @@ private:
     YAML::Node gModdingConfig;
     fs::path gSourceDirectory;
     fs::path gDestinationDirectory;
-    fs::path gCurrentDirectory;
+    std::unordered_map<std::string, ConfigCache> gConfigCache;
     std::string gCurrentHash;
     std::string gAssetPath;
     std::string gCommonAssetPath;

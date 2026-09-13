@@ -32,7 +32,7 @@ namespace OoT {
 namespace DListHelpers {
 
 // ── Internal helpers (not exposed in header) ──────────────────────────
-
+#define EXPORT_INDEX 1
 static uint32_t RemapSegmentedAddr(uint32_t addr, const std::string& expectedType = "") {
     uint8_t seg = SEGMENT_NUMBER(addr);
     uint32_t offset = SEGMENT_OFFSET(addr);
@@ -119,7 +119,7 @@ static bool ExportGSunDLVtx(uint32_t w0, uint32_t w1,
     uint64_t hash = CRC64(path.c_str());
     size_t nvtx = (w0 >> 12) & 0xFF;
     size_t didx = ((w0 >> 1) & 0x7F) - nvtx;
-    N64Gfx value = gsSPVertexOTR(diff, nvtx, didx);
+    N64Gfx value = gsSPVertexOTR(diff, nvtx, didx, 0);
     writer.Write(value.words.w0);
     writer.Write(value.words.w1);
     writer.Write(static_cast<uint32_t>(hash >> 32));
@@ -133,7 +133,10 @@ static void ExportVtx(uint32_t& w0, uint32_t& w1,
     size_t nvtx = (w0 >> 12) & 0xFF; // C0(12, 8)
     size_t didx = ((w0 >> 1) & 0x7F) - nvtx; // C0(1, 7) - C0(12, 8)
     auto ptr = Companion::Instance->PatchVirtualAddr(w1);
-
+    auto file = Companion::Instance->GetCurrentFile();
+    if (w1 == 0x060326D0 && w0 == 0x01012024) {
+        int bp = 0;
+    }
     if (IsAliasSegment(w1)) {
         w1 = w1 + 1;
         SPDLOG_INFO("VTX export: alias segment for 0x{:X}", ptr);
@@ -141,7 +144,7 @@ static void ExportVtx(uint32_t& w0, uint32_t& w1,
     }
 
     // Check overlap with cross-file handling
-    if (auto overlap = GFXDOverride::GetVtxOverlap(ptr); overlap.has_value()) {
+    if (auto overlap = GFXDOverride::GetVtxOverlap(ptr, file); overlap.has_value()) {
         auto ovnode = std::get<1>(overlap.value());
         auto path = Companion::Instance->RelativePath(std::get<0>(overlap.value()));
 
@@ -160,9 +163,15 @@ static void ExportVtx(uint32_t& w0, uint32_t& w1,
             SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, path);
             auto offset = GetSafeNode<uint32_t>(ovnode, "offset");
             auto diff = ASSET_PTR(ptr) - ASSET_PTR(offset);
-            N64Gfx value = gsSPVertexOTR(diff, nvtx, didx);
+#if EXPORT_INDEX
+            N64Gfx value = gsSPVertexOTR(diff, nvtx, didx, 1);
             writer.Write(value.words.w0);
-            writer.Write(value.words.w1);
+            writer.Write((uint32_t)((value.words.w1 & 0x00FFFFFE) / sizeof(N64Vtx)));
+#else
+            N64Gfx value = gsSPVertexOTR(diff, nvtx, didx, 0);
+            writer.Write(value.words.w0);
+            writer.Write((uint32_t)(value.words.w1));
+#endif
             w0 = hash >> 32;
             w1 = hash & 0xFFFFFFFF;
         }
@@ -194,9 +203,15 @@ static void ExportVtx(uint32_t& w0, uint32_t& w1,
                 throw std::runtime_error("Vtx hash is 0 for " + dec.value());
             }
             SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, dec.value());
-            N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
+#if EXPORT_INDEX
+            N64Gfx value = gsSPVertexOTR(0, nvtx, didx, 1);
             writer.Write(value.words.w0);
-            writer.Write(value.words.w1);
+            writer.Write((uint32_t)((value.words.w1 & 0x00FFFFFE) / sizeof(N64Vtx)));
+#else
+            N64Gfx value = gsSPVertexOTR(0, nvtx, didx, 0);
+            writer.Write(value.words.w0);
+            writer.Write((uint32_t)(value.words.w1));
+#endif
             w0 = hash >> 32;
             w1 = hash & 0xFFFFFFFF;
         }
@@ -209,7 +224,9 @@ static void ExportVtx(uint32_t& w0, uint32_t& w1,
         w1 = 0;
         return;
     }
-
+    if (w0 == 0x06000204) {
+        int bp = 0;
+    }
     // Cross-segment fallback
     SPDLOG_WARN("VTX export: NOT FOUND vtx at 0x{:X} w1=0x{:X} replacement={}", ptr, w1, *replacement);
     w1 = (w1 & 0x0FFFFFFF) + 1;
@@ -513,6 +530,7 @@ static void ParseMtx(uint32_t w1, YAML::Node& node) {
 static void ParseVtx(uint32_t w0, uint32_t w1, uint32_t nvtx,
                      YAML::Node& node, std::vector<uint8_t>& buffer) {
     const auto decl = Companion::Instance->GetNodeByAddr(w1);
+    auto file = Companion::Instance->GetCurrentFile();
     if (decl.has_value()) {
         SPDLOG_WARN("Found vtx at 0x{:X}", w1);
         return;
@@ -543,7 +561,7 @@ static void ParseVtx(uint32_t w0, uint32_t w1, uint32_t nvtx,
 
         if (absPtr > absOffset && absPtr <= absOffset + lSize) {
             SPDLOG_INFO("Found vtx at 0x{:X} matching last vtx at 0x{:X}", adjPtr, lOffset);
-            GFXDOverride::RegisterVTXOverlap(adjPtr, search.value());
+            GFXDOverride::RegisterVTXOverlap(adjPtr, search.value(), file);
         }
         return;
     }
@@ -641,6 +659,9 @@ std::optional<ExportResult> Export(std::ostream& write, std::shared_ptr<IParsedD
         auto w0 = cmds[i];
         auto w1 = cmds[i + 1];
         uint8_t opcode = w0 >> 24;
+        if (w1 == 0x060324F0) {
+            int bp = 0;
+        }
 
         // gSunDL VTX override — writes all words, skip rest of iteration
         if (opcode == F3DEX2_VTX && ExportGSunDLVtx(w0, w1, writer, replacement)) {

@@ -49,6 +49,7 @@ void FlushDeferred(const std::string& baseName) {
     // Don't clear sDeferred here — it stays active for the entire room.
     // Each DList parse flushes its own collected VTX.
     auto pending = std::move(sPendingList);
+    auto file = Companion::Instance->GetCurrentFile();
     sPendingList.clear();
 
     if (pending.empty()) {
@@ -113,7 +114,7 @@ void FlushDeferred(const std::string& baseName) {
             for (auto& pv : pending) {
                 uint32_t pvOff = SEGMENT_OFFSET(pv.addr);
                 if (pvOff > startOff && pvOff < mg.endOff) {
-                    GFXDOverride::RegisterVTXOverlap(pv.addr, overlapTuple);
+                    GFXDOverride::RegisterVTXOverlap(pv.addr, overlapTuple, file);
                 }
             }
         }

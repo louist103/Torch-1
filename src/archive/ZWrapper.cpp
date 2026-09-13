@@ -22,7 +22,7 @@ int32_t ZWrapper::CreateArchive() {
 bool ZWrapper::AddFile(const std::string& path, std::vector<char> data) {
     char* fileData = data.data();
     size_t fileSize = data.size();
-    if (path.find("../") != std::string::npos) {
+    if (path.find("spot02_scenePathwayList_006BD8") != std::string::npos) {
         int bp = 0;
     }
 
