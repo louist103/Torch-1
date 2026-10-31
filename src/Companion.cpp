@@ -592,9 +592,9 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
         }
     }
 
-    this->gCreateAtlas = true;
+    this->gCreateAtlasForFile = false;
     if (node["create_atlas"]) {
-        this->gCreateAtlas = node["create_atlas"].as<bool>();
+        this->gCreateAtlasForFile = node["create_atlas"].as<bool>();
     }
 
     if (node["directory"]) {
@@ -1230,9 +1230,9 @@ void Companion::ProcessFile(YAML::Node root, std::atomic<size_t>& assetCount) {
     SetCurrentDirectory(filePath, currentDir);
 
     if (auto createAtlas = root[":config"]["createatlas"]) {
-        this->gCreateAtlas = createAtlas.as<bool>();
+        this->gCreateAtlasForFile = createAtlas.as<bool>();
     } else {
-        this->gCreateAtlas = true;
+        this->gCreateAtlasForFile = true;
     }
     if (this->gCurrentFile.find("gameplay_keep") != std::string::npos) {
         int bp = 0;
@@ -1714,7 +1714,7 @@ void Companion::Process(std::atomic<size_t>& assetCount) {
         ClearTemporals();
         this->gCurrentFile = file;
         this->ParseCurrentFileConfig(root[":config"], assetCount);
-        if (this->gCreateAtlas) {
+        if (this->gCreateAtlasForFile) {
             YAML::Node atlasNode;
             YAML::Node atlasRoot;
             atlasNode["type"] = "TEXTURE_ATLAS";

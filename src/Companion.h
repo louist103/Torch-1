@@ -307,7 +307,10 @@ private:
     std::string gFileHeader;
     bool gEnablePadGen = false;
     bool mShouldProcess = true;
-    bool gBuildAtlas = true;
+    // If atlases are disabled from an command argument, only create an atlas if the yaml explicitly says to.
+    bool gBuildAtlasGlobal = true;
+    // Should we create an atlas form this file
+    bool gCreateAtlasForFile;
     uint32_t gCurrentPad = 0;
     uint32_t gCurrentFileOffset;
     std::unordered_map<std::string, uint32_t> gFileSegMap;
@@ -343,7 +346,7 @@ private:
         gNodesByTypeCache;
     // Validity bitmap; bit 0 = !includeAutogen, bit 1 = includeAutogen.
     std::unordered_map<std::string, std::unordered_map<std::string, uint8_t>> gNodesByTypeCacheValid;
-    bool gCreateAtlas;
+
     void ProcessParseFile(YAML::Node root, std::atomic<size_t>& assetCount);
     void ProcessExportFile(const std::string& file);
     void ProcessFile(YAML::Node root);
